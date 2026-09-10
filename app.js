@@ -1,40 +1,51 @@
 let localStream = null;
 let currentCall = null;
 let incomingCall = null;
-let peerReady = false;
-let ringtoneStarted = false;
+let peer = null;
+let username = "";
+let ringtonePlaying = false;
 
-const myIdEl = document.getElementById("my-id");
-const peerIdInput = document.getElementById("peer-id-input");
+const loginPanel = document.getElementById("login-panel");
+const appPanel = document.getElementById("app-panel");
+const usernameInput = document.getElementById("username-input");
+const startBtn = document.getElementById("start-btn");
+const myUsername = document.getElementById("my-username");
+
+const peerUsernameInput = document.getElementById("peer-username-input");
 const callBtn = document.getElementById("call-btn");
 const hangupBtn = document.getElementById("hangup-btn");
-const copyBtn = document.getElementById("copy-btn");
 const callStatus = document.getElementById("call-status");
-const remoteAudio = document.getElementById("remote-audio");
 
 const incomingCallBox = document.getElementById("incoming-call");
 const incomingFrom = document.getElementById("incoming-from");
 const answerBtn = document.getElementById("answer-btn");
 const rejectBtn = document.getElementById("reject-btn");
-const ringtone = document.getElementById("ringtone");
 
-const peer = new Peer();
+const remoteAudio = document.getElementById("remote-audio");
+const ringtone = document.getElementById("ringtone");
 
 function setStatus(message) {
   callStatus.textContent = message;
 }
 
-function updateButtons() {
-  callBtn.disabled = !peerReady || !localStream || !!currentCall;
-  hangupBtn.disabled = !currentCall;
-  copyBtn.disabled = !peerReady || !myIdEl.textContent || myIdEl.textContent === "Generando ID...";
+function normaliseUsername(value) {
+  return value.trim().toLowerCase();
 }
 
-async function ensureMicrophone() {
+function isValidUsername(value) {
+  return /^[a-zA-Z0-9_-]{2,24}$/.test(value);
+}
+
+function displayUsername(value) {
+  // Mostramos el nombre en mayúsculas, pero internamente usamos minúsculas.
+  return value.toUpperCase();
+}
+
+async function getMicrophone() {
   if (localStream) return true;
 
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    setStatus("Este navegador no permite acceder al micrófono.");
+    setStatus("Este navegador no permite usar el micrófono.");
     return false;
   }
 
@@ -43,39 +54,41 @@ async function ensureMicrophone() {
       audio: true,
       video: false
     });
-
-    updateButtons();
     return true;
   } catch (error) {
     console.error(error);
-    setStatus("No se pudo acceder al micrófono. Revisa el permiso del navegador.");
+    setStatus("No hay permiso para usar el micrófono.");
     return false;
   }
+}
+
+function updateButtons() {
+  callBtn.disabled = !peer || !!currentCall || !localStream;
+  hangupBtn.disabled = !currentCall;
 }
 
 async function startRingtone() {
   try {
     ringtone.currentTime = 0;
     await ringtone.play();
-    ringtoneStarted = true;
+    ringtonePlaying = true;
   } catch (error) {
-    // Algunos navegadores bloquean audio automático.
-    // El sonido comenzará cuando el usuario pulse Aceptar/Rechazar.
-    console.warn("El navegador bloqueó el sonido automático:", error);
+    // Los navegadores pueden bloquear sonido automático.
+    console.warn("No se pudo iniciar el sonido automáticamente:", error);
   }
 }
 
 function stopRingtone() {
   ringtone.pause();
   ringtone.currentTime = 0;
-  ringtoneStarted = false;
+  ringtonePlaying = false;
 }
 
 function showIncomingCall(call) {
   incomingCall = call;
-  incomingFrom.textContent = "ID: " + (call.peer || "dispositivo desconocido");
+  incomingFrom.textContent = `${displayUsername(call.peer)} te está llamando.`;
   incomingCallBox.classList.remove("hidden");
-  setStatus("📞 Llamada entrante...");
+  setStatus(`📞 Llamada de ${displayUsername(call.peer)}`);
   startRingtone();
 }
 
@@ -84,55 +97,77 @@ function hideIncomingCall() {
   stopRingtone();
 }
 
-peer.on("open", async (id) => {
-  peerReady = true;
-  myIdEl.textContent = id;
-  setStatus("Listo para llamar.");
-  updateButtons();
+startBtn.addEventListener("click", async () => {
+  const rawUsername = usernameInput.value.trim();
 
-  await ensureMicrophone();
-});
-
-peer.on("error", (error) => {
-  console.error("PeerJS:", error);
-  setStatus("Error de conexión: " + (error.message || "desconocido"));
-  updateButtons();
-
-  if (incomingCall) {
-    incomingCall.close();
-    incomingCall = null;
-    hideIncomingCall();
-  }
-});
-
-peer.on("disconnected", () => {
-  peerReady = false;
-  setStatus("Se perdió la conexión. Intentando reconectar...");
-  updateButtons();
-
-  try {
-    peer.reconnect();
-  } catch (error) {
-    console.error(error);
-  }
-});
-
-peer.on("close", () => {
-  peerReady = false;
-  setStatus("La conexión con el servicio se cerró.");
-  updateButtons();
-});
-
-peer.on("call", async (call) => {
-  if (currentCall || incomingCall) {
-    call.close();
+  if (!isValidUsername(rawUsername)) {
+    alert("El usuario debe tener entre 2 y 24 caracteres y usar solo letras, números, guion o guion bajo.");
     return;
   }
 
-  incomingCall = call;
-  showIncomingCall(call);
+  username = normaliseUsername(rawUsername);
+  startBtn.disabled = true;
+  setStatus("Conectando...");
 
-  // Por seguridad, si la persona rechaza o acepta se decide desde los botones.
+  try {
+    /*
+     * Usamos el nombre de usuario como ID de PeerJS.
+     * Así no hace falta copiar un ID extraño.
+     */
+    peer = new Peer(username);
+
+    peer.on("open", async () => {
+      loginPanel.classList.add("hidden");
+      appPanel.classList.remove("hidden");
+      myUsername.textContent = displayUsername(username);
+
+      const micOK = await getMicrophone();
+
+      if (micOK) {
+        setStatus("🟢 Conectado. Listo para llamar.");
+        updateButtons();
+      } else {
+        setStatus("Conectado, pero falta permiso para el micrófono.");
+        updateButtons();
+      }
+    });
+
+    peer.on("call", (call) => {
+      if (currentCall || incomingCall) {
+        call.close();
+        return;
+      }
+
+      showIncomingCall(call);
+    });
+
+    peer.on("error", (error) => {
+      console.error("PeerJS:", error);
+
+      if (error.type === "unavailable-id") {
+        alert("Ese nombre de usuario ya está en uso. Elige otro.");
+        window.location.reload();
+        return;
+      }
+
+      setStatus("Error de conexión: " + (error.message || "desconocido"));
+    });
+
+    peer.on("disconnected", () => {
+      setStatus("Conexión perdida. Intentando reconectar...");
+
+      try {
+        peer.reconnect();
+      } catch (error) {
+        console.error(error);
+      }
+    });
+
+  } catch (error) {
+    console.error(error);
+    startBtn.disabled = false;
+    setStatus("No se pudo iniciar.");
+  }
 });
 
 answerBtn.addEventListener("click", async () => {
@@ -144,9 +179,9 @@ answerBtn.addEventListener("click", async () => {
   incomingCall = null;
   hideIncomingCall();
 
-  const microphoneReady = await ensureMicrophone();
+  const micOK = await getMicrophone();
 
-  if (!microphoneReady) {
+  if (!micOK) {
     call.close();
     return;
   }
@@ -157,7 +192,7 @@ answerBtn.addEventListener("click", async () => {
   try {
     call.answer(localStream);
     setupCallHandlers(call);
-    setStatus("Conectando llamada...");
+    setStatus(`📞 Hablando con ${displayUsername(call.peer)}...`);
   } catch (error) {
     console.error(error);
     call.close();
@@ -176,25 +211,33 @@ rejectBtn.addEventListener("click", () => {
 });
 
 callBtn.addEventListener("click", async () => {
-  const remoteId = peerIdInput.value.trim();
+  const rawTarget = peerUsernameInput.value.trim();
 
-  if (!remoteId) {
-    window.alert("Introduce el ID del dispositivo al que quieres llamar.");
+  if (!isValidUsername(rawTarget)) {
+    alert("Introduce un nombre de usuario válido.");
     return;
   }
 
-  if (!peerReady) {
-    window.alert("Todavía no estamos conectados al servicio.");
+  const target = normaliseUsername(rawTarget);
+
+  if (target === username) {
+    alert("No puedes llamarte a ti mismo.");
     return;
   }
 
-  const microphoneReady = await ensureMicrophone();
-  if (!microphoneReady) return;
+  const micOK = await getMicrophone();
+  if (!micOK) return;
 
   try {
-    setStatus("📞 Llamando...");
-    currentCall = peer.call(remoteId, localStream);
+    currentCall = peer.call(target, localStream);
+
+    if (!currentCall) {
+      setStatus("No se pudo iniciar la llamada.");
+      return;
+    }
+
     setupCallHandlers(currentCall);
+    setStatus(`📞 Llamando a ${displayUsername(target)}...`);
   } catch (error) {
     console.error(error);
     currentCall = null;
@@ -209,19 +252,6 @@ hangupBtn.addEventListener("click", () => {
   }
 });
 
-copyBtn.addEventListener("click", async () => {
-  const id = myIdEl.textContent;
-
-  if (!peerReady || !id || id === "Generando ID...") return;
-
-  try {
-    await navigator.clipboard.writeText(id);
-    setStatus("ID copiado al portapapeles.");
-  } catch {
-    setStatus("No se pudo copiar automáticamente. Copia el ID manualmente.");
-  }
-});
-
 function setupCallHandlers(call) {
   currentCall = call;
   updateButtons();
@@ -232,10 +262,10 @@ function setupCallHandlers(call) {
     try {
       await remoteAudio.play();
     } catch (error) {
-      console.warn("El navegador bloqueó el audio remoto:", error);
+      console.warn("El navegador bloqueó la reproducción:", error);
     }
 
-    setStatus("📞 Llamada en curso...");
+    setStatus(`📞 Hablando con ${displayUsername(call.peer)}...`);
   });
 
   call.on("close", () => {
@@ -273,5 +303,9 @@ window.addEventListener("beforeunload", () => {
 
   if (localStream) {
     localStream.getTracks().forEach((track) => track.stop());
+  }
+
+  if (peer && !peer.destroyed) {
+    peer.destroy();
   }
 });
