@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Llamadas de Voz</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
+
+<body>
+  <main class="card">
+    <h1>📞 Llamadas de voz</h1>
+    <p class="subtitle">Llama a otro dispositivo usando su ID.</p>
+
+    <section class="status-box">
+      <p>Tu ID de conexión</p>
+      <div class="id-row">
+        <span id="my-id">Generando ID...</span>
+        <button id="copy-btn" class="btn btn-secondary" type="button" disabled>Copiar</button>
+      </div>
+    </section>
+
+    <section class="input-group">
+      <label for="peer-id-input">ID del dispositivo al que quieres llamar</label>
+      <input
+        type="text"
+        id="peer-id-input"
+        placeholder="Introduce el ID"
+        autocomplete="off"
+        spellcheck="false"
+      >
+
+      <button id="call-btn" class="btn btn-call" type="button" disabled>
+        📞 Llamar
+      </button>
+
+      <button id="hangup-btn" class="btn btn-hangup" type="button" disabled>
+        🔴 Colgar
+      </button>
+    </section>
+
+    <p id="call-status" class="status-text">Conectando con el servicio...</p>
+
+    <audio id="remote-audio" autoplay playsinline></audio>
+
+    <!-- Ventana de llamada entrante -->
+    <div id="incoming-call" class="incoming-call hidden">
+      <div class="incoming-box">
+        <div class="incoming-icon">📞</div>
+        <h2>Llamada entrante</h2>
+        <p id="incoming-from">Alguien te está llamando...</p>
+
+        <div class="incoming-buttons">
+          <button id="answer-btn" class="btn btn-answer" type="button">
+            ✅ Aceptar
+          </button>
+          <button id="reject-btn" class="btn btn-reject" type="button">
+            ❌ Rechazar
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Sonido de llamada -->
+  <audio id="ringtone" preload="auto" loop>
+    <source src="https://actions.google.com/sounds/v1/alarms/phone_alerts_and_rings.ogg" type="audio/ogg">
+  </audio>
+
+  <script src="app.js"></script>
+</body>
+</html>
