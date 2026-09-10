@@ -1,211 +1,91 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Llamadas de voz</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+</head>
 
-body {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  background: #0f172a;
-  color: #f8fafc;
-  font-family: "Segoe UI", system-ui, sans-serif;
-}
+<body>
+  <main class="card">
+    <h1>📞 Llamadas de voz</h1>
+    <p class="subtitle">Usa un nombre de usuario para llamar.</p>
 
-.card {
-  width: 100%;
-  max-width: 430px;
-  padding: 28px;
-  background: #1e293b;
-  border-radius: 16px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-}
+    <section id="login-panel">
+      <label for="username-input">Tu nombre</label>
+      <input
+        id="username-input"
+        type="text"
+        maxlength="24"
+        placeholder="Ejemplo: abuelo"
+        autocomplete="off"
+        spellcheck="false"
+      >
+      <p class="hint">Ejemplo: abuelo</p>
+      <button id="start-btn" class="btn btn-call" type="button">
+        Entrar
+      </button>
+    </section>
 
-h1 {
-  margin-bottom: 8px;
-  font-size: 1.55rem;
-  text-align: center;
-}
+    <section id="app-panel" class="hidden">
+      <section class="status-box">
+        <p>Conectado como</p>
+        <strong id="my-username"></strong>
+      </section>
 
-h2 {
-  margin-bottom: 8px;
-}
+      <section class="input-group">
+        <label for="peer-username-input">Usuario al que quieres llamar</label>
+        <input
+          type="text"
+          id="peer-username-input"
+          maxlength="24"
+          placeholder="tu nieto"
+          autocomplete="off"
+          spellcheck="false"
+        >
 
-.subtitle {
-  margin-bottom: 22px;
-  color: #94a3b8;
-  text-align: center;
-  font-size: 0.92rem;
-}
+        <button id="call-btn" class="btn btn-call" type="button" disabled>
+          📞 Llamar
+        </button>
 
-label {
-  display: block;
-  margin-bottom: 8px;
-  color: #cbd5e1;
-  font-size: 0.9rem;
-}
+        <button id="hangup-btn" class="btn btn-hangup" type="button" disabled>
+          🔴 Colgar
+        </button>
+      </section>
 
-input {
-  width: 100%;
-  padding: 13px;
-  border: 1px solid #475569;
-  border-radius: 8px;
-  outline: none;
-  background: #0f172a;
-  color: #fff;
-  font-size: 1rem;
-}
+      <p id="call-status" class="status-text">Listo para llamar.</p>
+      <p class="small-note">
+        La otra persona también debe tener la página abierta y estar conectada.
+      </p>
+    </section>
 
-input:focus {
-  border-color: #38bdf8;
-}
+    <audio id="remote-audio" autoplay playsinline></audio>
 
-.hint {
-  margin: 8px 0 14px;
-  color: #94a3b8;
-  font-size: 0.78rem;
-}
+    <div id="incoming-call" class="incoming-call hidden">
+      <div class="incoming-box">
+        <div class="incoming-icon">📞</div>
+        <h2>Llamada entrante</h2>
+        <p id="incoming-from"></p>
 
-.status-box {
-  margin-bottom: 20px;
-  padding: 16px;
-  border-radius: 10px;
-  background: #334155;
-  text-align: center;
-}
+        <div class="incoming-buttons">
+          <button id="answer-btn" class="btn btn-answer" type="button">
+            ✅ Aceptar
+          </button>
+          <button id="reject-btn" class="btn btn-reject" type="button">
+            ❌ Rechazar
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
 
-.status-box p {
-  margin-bottom: 6px;
-  color: #cbd5e1;
-  font-size: 0.85rem;
-}
+  <!-- Sonido de llamada -->
+  <audio id="ringtone" preload="auto" loop>
+    <source src="https://actions.google.com/sounds/v1/alarms/phone_alerts_and_rings.ogg" type="audio/ogg">
+  </audio>
 
-#my-username {
-  color: #38bdf8;
-  font-size: 1.25rem;
-  overflow-wrap: anywhere;
-}
-
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.btn {
-  width: 100%;
-  padding: 13px;
-  border: 0;
-  border-radius: 8px;
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.98rem;
-  cursor: pointer;
-}
-
-.btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.btn-call,
-.btn-answer {
-  background: #22c55e;
-}
-
-.btn-hangup,
-.btn-reject {
-  background: #ef4444;
-}
-
-.status-text {
-  min-height: 40px;
-  margin-top: 18px;
-  padding: 10px;
-  border-radius: 8px;
-  color: #cbd5e1;
-  background: rgba(15, 23, 42, 0.45);
-  text-align: center;
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
-
-.small-note {
-  margin-top: 12px;
-  color: #94a3b8;
-  font-size: 0.78rem;
-  text-align: center;
-  line-height: 1.4;
-}
-
-.hidden {
-  display: none !important;
-}
-
-/* Llamada entrante */
-.incoming-call {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  background: rgba(2, 6, 23, 0.84);
-}
-
-.incoming-box {
-  width: 100%;
-  max-width: 350px;
-  padding: 28px;
-  border-radius: 18px;
-  background: #1e293b;
-  text-align: center;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-}
-
-.incoming-icon {
-  width: 76px;
-  height: 76px;
-  margin: 0 auto 15px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 50%;
-  background: #22c55e;
-  font-size: 36px;
-  animation: pulse 1.1s infinite;
-}
-
-.incoming-box p {
-  margin-bottom: 20px;
-  color: #94a3b8;
-  word-break: break-word;
-}
-
-.incoming-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.incoming-buttons .btn {
-  flex: 1;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-}
-
-@media (max-width: 420px) {
-  .card {
-    padding: 22px;
-  }
-
-  .incoming-buttons {
-    flex-direction: column;
-  }
-}
+  <script src="app.js"></script>
+</body>
+</html>
